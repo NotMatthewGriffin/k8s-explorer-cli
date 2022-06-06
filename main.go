@@ -1,11 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"io"
-	"bytes"
+	"os"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,17 +14,20 @@ import (
 
 	"k8s.io/client-go/tools/clientcmd"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // probably better to have a single model own this
 var (
-	clientWidth int = 0
+	clientWidth  int = 0
 	clientHeight int = 0
 )
 
+var helpColor = lipgloss.NewStyle().Foreground(lipgloss.Color("30"))
+var cursorColor = lipgloss.NewStyle().Foreground(lipgloss.Color("34")) 
+var secondaryColor = lipgloss.NewStyle().Foreground(lipgloss.Color("44"))
 
 func getConfig() *rest.Config {
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
@@ -100,7 +103,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return model{}, getNamespaceList
 
 		case "l", "enter":
-			if len(m.choices) - 1 < m.cursor{
+			if len(m.choices)-1 < m.cursor {
 				break
 			}
 			namespace := m.choices[m.cursor].Name
@@ -121,14 +124,14 @@ func (m model) View() string {
 		if m.cursor == i {
 			cursor = ">"
 		}
-		s += fmt.Sprintf("%s %s\n", cursor, namespace.Name)
+		s += fmt.Sprintf("%s %s\n", cursorColor.Render(cursor), namespace.Name)
 	}
 
 	if !m.populated {
 		s += "\nRetrieving Namespaces\n"
 	}
 
-	return s + "\n\nPress q to quit, r to refresh"
+	return s + helpColor.Render("\n\nPress q to quit, r to refresh")
 }
 
 func getPodList(namespace string) tea.Msg {
@@ -149,7 +152,7 @@ type podModel struct {
 	cursor    int
 	populated bool
 	namespace string
-	from tea.Model
+	from      tea.Model
 }
 
 func (m podModel) Init() tea.Cmd {
@@ -184,7 +187,7 @@ func (m podModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return getPodList(m.namespace)
 			}
 		case "l", "enter":
-			if len(m.choices) - 1 < m.cursor{
+			if len(m.choices)-1 < m.cursor {
 				break
 			}
 			return containerModel{from: m, namespace: m.namespace, pod: m.choices[m.cursor].Name}, func() tea.Msg {
@@ -205,10 +208,10 @@ func (m podModel) View() string {
 		if m.cursor == i {
 			cursor = ">"
 		}
-		s += fmt.Sprintf("%s %s\n", cursor, pod.Name)
+		s += fmt.Sprintf("%s %s\n", cursorColor.Render(cursor), pod.Name)
 	}
 
-	return s + "\n\nPress q to quit, r to refresh, h to go back"
+	return s + helpColor.Render("\n\nPress q to quit, r to refresh, h to go back")
 }
 
 func getContainerList(pod corev1.Pod) tea.Msg {
@@ -227,17 +230,17 @@ func getContainerList(pod corev1.Pod) tea.Msg {
 
 type containerModel struct {
 	choices   []corev1.Container
-	types []string
+	types     []string
 	cursor    int
 	populated bool
-	pod string
+	pod       string
 	namespace string
-	from tea.Model
+	from      tea.Model
 }
 
 type containerListMsg struct {
 	containers []corev1.Container
-	types []string
+	types      []string
 }
 
 func (m containerModel) Init() tea.Cmd {
@@ -270,7 +273,7 @@ func (m containerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "h":
 			return m.from, nil
 		case "l", "enter":
-			if len(m.choices) - 1 < m.cursor{
+			if len(m.choices)-1 < m.cursor {
 				break
 			}
 			return containerLogModel{from: m}, func() tea.Msg {
@@ -289,10 +292,14 @@ func (m containerModel) View() string {
 		if m.cursor == i {
 			cursor = ">"
 		}
-		s += fmt.Sprintf("%s %s\n\t%s\n", cursor, container.Name, lipgloss.NewStyle().Foreground(lipgloss.Color("44")).Render(m.types[i]))
+		s += fmt.Sprintf("%s %s\n\t%s\n",
+			cursorColor.Render(cursor),
+			container.Name,
+			secondaryColor.Render(m.types[i]),
+		)
 	}
 
-	return s + "\n\nPress q to quit, h to go back"
+	return s + helpColor.Render("\n\nPress q to quit, h to go back")
 }
 
 func getContainerLogs(namespace, pod, container string) tea.Msg {
@@ -315,8 +322,8 @@ func getContainerLogs(namespace, pod, container string) tea.Msg {
 
 type containerLogModel struct {
 	viewport viewport.Model
-	ready bool
-	from tea.Model
+	ready    bool
+	from     tea.Model
 }
 
 type containerLogMsg string
@@ -326,7 +333,7 @@ func (m containerLogModel) Init() tea.Cmd {
 }
 
 func (m containerLogModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type){
+	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
@@ -348,7 +355,7 @@ func (m containerLogModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m containerLogModel) View() string {
-	if (m.ready){
+	if m.ready {
 		return m.viewport.View()
 	}
 	return "Retrieving logs ..."
